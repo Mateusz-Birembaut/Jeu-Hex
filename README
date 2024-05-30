@@ -1,0 +1,14 @@
+Membres du groupe :
+
+Mateusz BIREMBAUT
+Florian COLLE 
+
+Fonctionnalitées :
+
+-Le premier client a aller sur localhost parametre la partie
+-Messagerie instantanée
+-Suppression de joueurs si on est connecté (on enleve ses hexagones)
+-Détection automatique de la victoire
+-Possibilité de relancer une partie avec après victoire ou 
+-Partie relancer de 0 si le nb de joueurs dans la partie < 2
+-Reconnexion avec le code + nom

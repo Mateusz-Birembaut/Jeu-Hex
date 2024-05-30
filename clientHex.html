@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <script src="https://d3js.org/d3.v5.min.js"></script>
+        <script>
+
+            var socket = io();
+            var client_numero;
+
+            var nomJoueur = "";
+            var couleur = "";
+            var numJoueur;
+            var codeSecret;
+
+
+            //var Joueurs = "";
+
+            function joueurCo() {
+                socket.emit('joueurCo', "");
+            }
+
+            socket.on("num", (data) => {
+                client_numero = data.nb;    
+                //mettre joueur co la
+                cacherParametre(data.joueurs);
+            });
+
+            socket.on('joueurCo', data => {
+                $("#listeJoueur").empty();
+                for (let i = 0; i < data.j.length; i++) {
+                    $("#listeJoueur").append("<li><span style=\"color:"+data.c[i]+"\">"+data.j[i]+"</span></li>");
+                }
+            });
+
+            function nbClientCo() {
+                socket.emit('nbClientCo', "");
+            }
+
+            socket.on('nbClientCo', clients => {
+                client_numero = clients;
+            });
+
+            // probablement c'est que il a pas le temps d'avoir la reponse du serveur qu'il a deja test si != 1
+            function cacherParametre(joueurs){
+                //si on est deja co, on fait rien
+                if(nomJoueur != ""){
+                    return;
+                }
+                document.getElementById("restartButton").style.display = "none";
+                document.getElementById("damier").style.display = "none";
+                document.getElementById("suppression").style.display = "none";
+                document.getElementById("chat").style.display = "none";
+                //si il y a des joueurs AKA la partie est lancé, on affiche le from de connexion
+                if(joueurs.length>0){
+                    document.getElementById("parametre").style.display = "none";
+                    document.getElementById("waiting").style.display = "none";
+                }else { // la partie est pas lancé
+                    document.getElementById("connexion").style.display = "none";
+                    //si on est pas le 1, on affiche une page d'attente
+                    if(client_numero!=1){
+                        document.getElementById("parametre").style.display = "none";
+                        document.getElementById("waiting").style.display = "block";
+                        
+                    }else { //si on est le 1, on affiche le paramétrage de la partie
+                        document.getElementById("parametre").style.display = "block";
+                        document.getElementById("waiting").style.display = "none";
+                    }
+                }
+            }
+
+            socket.on('deconnexionClient', (data) => {
+                if(client_numero>1){
+                    client_numero--;
+                }
+                cacherParametre(data.joueurs);
+            });
+
+            function creerPartie(){
+                if($("#nomCreateur").val().trim().length == 0 || ($("#codeCreateur").val().trim().length != 4 && $("#codeCreateur").val() != "")){
+                    return false;
+                }
+                let t = $("#tailleDamier").val();
+                var infoJoueurs = {nom: $("#nomCreateur").val().trim(), couleur: $("#couleurCreateur").val(), code: $("#codeCreateur").val(),nbJoueur: $("#nbJoueurs").val(), tailleDamier: t};
+
+                socket.emit("creerPartie",infoJoueurs);
+            }
+
+            socket.on("creerPartie", client => {
+                if(nomJoueur==""){
+                    document.getElementById("waiting").style.display = "none";
+                    document.getElementById("connexion").style.display = "block";
+                }
+            });
+
+
+            function rejoindrePartie(){
+                // pas sure que ça mette a jour la liste des joueurs
+                if($("#nomJoueur").val().trim().length == 0 || ($("#codeJoueur").val().trim().length != 4 && $("#codeJoueur").val() != "")){
+                    return false;
+                }
+                var infoJoueurs = {nom: $("#nomJoueur").val().trim(), couleur: $("#couleurJoueur").val(), code: $("#codeJoueur").val()};
+                socket.emit("rejoinPartie",infoJoueurs);
+            }
+
+            socket.on("connexion", (data) => {
+                nomJoueur = data.nom;
+                numJoueur = data.num;
+                couleur = data.couleur;
+                codeSecret = data.code;
+                joueurCo();
+                if($("#damier").empty()){
+                    genereDamier(20,data.tailleDamier,data.tailleDamier);
+                }
+                socket.emit("demandePionJoue","je demande pions");
+                
+                document.getElementById("connexion").style.display = "none";
+                document.getElementById("parametre").style.display = "none";
+                document.getElementById("codeSecret").innerHTML = "";
+                $("#codeSecret").append('<p>Code pour se reconnecter : '+ codeSecret +'</p>'); 
+                document.getElementById("cercle").style.background=couleur;
+                document.getElementById("chat").style.display = "block";
+                document.getElementById("damier").style.display = "block";
+                document.getElementById("suppression").style.display = "block";
+            });
+
+            socket.on("failedCo",(data) =>{
+                console.log(data);
+            });
+
+            function supprimerJoueur(){
+                if($("#nomJoueurDelete").val().trim().length == 0){
+                    return false;
+                }
+                var joueurASupprimer= {nom: $("#nomJoueurDelete").val().trim()};
+                $("#nomJoueurDelete").val("");
+                socket.emit("supprimerJoueur",joueurASupprimer);
+            }
+
+            socket.on("supprimerJoueur", (data) => {
+                if(numJoueur>data){
+                    numJoueur--;
+                }else if(numJoueur == data){
+                    numJoueur=undefined;
+                    couleur=undefined;
+                    nomJoueur=undefined;
+                    codeSecret=undefined;       
+                    document.getElementById("damier").style.display = "none";
+                    document.getElementById("suppression").style.display = "none";
+                    document.getElementById("chat").style.display = "none";
+                    document.getElementById("connexion").style.display = "block";
+                }
+                joueurCo();
+            });
+
+            function sendMsg() {
+                if (nomJoueur=="" || $("#mess").val().trim()==""){
+                    return false;
+                }
+                socket.emit("message","<span style=\"color:"+couleur+"\">"+nomJoueur+"</span> : "+$("#mess").val());
+                $("#mess").val("");
+            }
+
+            socket.on("message", (msg) => {
+                $("#msgListe").append('<li class="msg"><p>'+ msg +'</p></li>'); 
+            });
+
+            function creeHexagone(rayon) {
+                let points = new Array();
+                for (var i = 0; i < 6; ++i) {
+                    var angle = i * Math.PI / 3;
+                    var x = Math.sin(angle) * rayon; var y = -Math.cos(angle) * rayon;
+                    points.push([Math.round(x*100)/100, Math.round(y*100)/100]);
+                }
+                return points;
+            }
+
+            function genereDamier(rayon, nbLignes, nbColonnes) {
+                distance = rayon - (Math.sin(1 * Math.PI / 3) * rayon);
+                distance=distance*1.5;
+                rayon=rayon*1.5;
+                d3.select("#damier").append("svg").attr("width", (nbLignes*2)*2*rayon).attr("height",(nbLignes*2)*2*rayon);
+                var hexagone = creeHexagone(rayon);
+                var decalage=0;
+                for (var ligne=0; ligne < nbLignes; ligne++) {
+                    for (var colonne=0; colonne < nbColonnes; colonne++) {
+                        var d = ""; var x, y;
+                        for (h in hexagone) {
+                            x = hexagone[h][0]+(rayon-distance)*(2+decalage+1*colonne);
+                            y = distance*2 + hexagone[h][1]+(rayon-distance*2)*(1+2*colonne);
+                            if (h == 0) d += "M"+x+","+y+" L"; else d += x+","+y+" ";
+                        }
+                        d += "Z";
+                        d3.select("svg")
+                        .append("path")
+                        .attr("d", d).attr("stroke", "black").attr("fill", "white")
+                        .attr("id", "h"+(ligne*nbLignes+colonne))
+                        .on("click", function(d) { 
+                            let autorise=0;
+                            let id=d3.select(this).attr('id').split('h')[1];
+                            socket.emit('pion',{case: id, num: numJoueur, couleurPose: couleur});
+                        });
+                    }
+                    decalage+=2;
+                }
+            }
+
+            socket.on('pion', data => {
+                $("#h"+data.numCase).attr('fill',data.couleurPose);
+            });
+
+
+            socket.on('demandePionJoue', data =>{
+                for(let i=0;i<data.hex.length;i++)
+                {
+                    if(data.hex[i]!=-1){
+                        $("#h"+i).attr('fill',data.couleurs[data.hex[i]]);
+                    }else {
+                        $("#h"+i).attr('fill','white');
+                    }
+                }
+            });
+
+            socket.on('PartieTermine', data => {
+                if(nomJoueur!=""){
+                    document.getElementById("restartButton").style.display = "block";
+                }
+            });
+
+            function restartGame(){
+                socket.emit("restartGame","relance une partie");
+            }
+
+            socket.on("resetAttributs",data=>{
+
+                nomJoueur = "";
+                couleur = "";
+                numJoueur="";
+                codeSecret="";
+                $("#msgListe").empty();
+                $("#damier").empty();
+                cacherParametre([]);
+            });
+
+        </script>
+
+
+        <div id="parametre">
+            <h2>Paramétrage de la partie</h2>
+
+            <form>
+                <label>Pseudo : </label><input type="text" id="nomCreateur" name ="nomCreateur" placeholder="Nom de joueur" value="">
+                <label>Votre Couleur : </label><input type="color" id="couleurCreateur" name="couleurCreateur" value="">
+                <label>Nombre de joueurs : </label><input type="number" id="nbJoueurs" name="nbJoueurs" value="2" min="2" max="4">
+                <label>Code pour rejoindre la partie (4 chiffres) : </label><input type="number" id="codeCreateur" name="codeCreateur" value="" min="0" max="9999">
+                <label>Taille du damier : </label><input type="number" id="tailleDamier" name="tailleDamier" value="4" min="4" max="15">
+                <input type="button" value="Creer Partie"  onclick="creerPartie();">
+            </form>
+
+        </div>
+        <div id="waiting">
+            <h2>En attente du lancement de la partie</h2>
+            <div class="loader" id="loader"></div>
+        </div>
+        <div id="connexion">
+            <h2>Connexion / Reconnexion</h2>
+            <form>
+                <label>Pseudo : </label><input type="text" id="nomJoueur" name ="nomJoueur" placeholder="Nom de joueur" value="">
+                <label>Votre Couleur : </label><input type="color" id="couleurJoueur" name="couleurJoueur" value="">
+                <label>Code pour rejoindre la partie (4 chiffres) : </label><input type="number" id="codeJoueur" name="codeJoueur" value="" min="0" max="9999">
+                <input type="button" value="Rejoindre"  onclick="rejoindrePartie();">
+            </form>
+        </div>
+        <div id="suppression">
+            <form>
+                <label>Pseudo : </label><input type="text" id="nomJoueurDelete" name ="nomJoueurDelete" placeholder="Nom de joueur" value="">
+                <input type="button" value="Supprimer"  onclick="supprimerJoueur();">
+            </form>
+        </div>
+        <div id="chat">
+            <div id="cercle" style="position: absolute;left:200px;top:70px;width:40px;height: 40px;border-radius: 20px;"></div> 
+            <div id="codeSecret"></div>
+            <div id="listMsg_listeJoueur">
+                <div>
+                    <ul id="listeJoueur" class="listeJoueur">
+                    </ul>
+                </div>
+                <div id="messages" class="messages">
+                    <ul id="msgListe">
+                    </ul>
+                </div>
+            </div>
+            <div id="envoie_Msg">
+                <form class="form-inline" role="form" onkeydown="return event.key != 'Enter';">
+                    <div>
+                        <input type="text" value="" id="mess">
+                        <input type="button" value="Envoyer"  onclick="sendMsg()">
+                    </div>
+                </form>
+            </div>
+        </div>
+        <input id="restartButton" type="button" value="Relancer une partie"  onclick="restartGame()">
+        <div id="damier"></div>
+    </body>
+</html>
